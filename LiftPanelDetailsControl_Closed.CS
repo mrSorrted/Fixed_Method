@@ -98,7 +98,7 @@ WITH Parsed AS
 
         d.CurrentTimestamp,
 
-        CAST(d.Status AS INT) AS BaseStatus,  -- cast BIT to INT
+        CAST(d.Status AS INT) AS BaseStatus,
 
         j.[key] AS ElementNo,
 
@@ -106,7 +106,7 @@ WITH Parsed AS
 
     FROM vw_eledata d
 
-    CROSS APPLY OPENJSON(d.SIGNAL) j
+    OUTER APPLY OPENJSON(d.SIGNAL) j  -- include empty SIGNAL
 
 ),
 
@@ -120,8 +120,8 @@ Pivoted AS
 
         CurrentTimestamp,
 
-        MAX(BaseStatus) AS BaseStatus,  -- now aggregation works
-
+        MAX(BaseStatus) AS BaseStatus,
+ 
         -- Current Floor (processed[0])
 
         MAX(CASE WHEN ElementNo = 0 THEN
@@ -136,7 +136,7 @@ Pivoted AS
 
         END) AS CurrentFloor,
  
-        -- Status from processed[3]
+        -- Status from processed[3] if not offline
 
         MAX(CASE WHEN ElementNo = 3 THEN
 
@@ -222,19 +222,21 @@ SELECT
 
     DeviceName,
 
+    -- If BaseStatus = 1 → Offline, else processed[3], blank if NULL
+
     CASE 
 
         WHEN BaseStatus = 1 THEN 'Offline'
 
-        ELSE StatusFromSignal
+        ELSE ISNULL(StatusFromSignal, '')
 
     END AS Status,
 
-    CurrentFloor,
+    ISNULL(CAST(CurrentFloor AS VARCHAR(10)), '') AS CurrentFloor,
 
-    DoorStatus,
+    ISNULL(DoorStatus, '') AS DoorStatus,
 
-    Arrow,
+    ISNULL(Arrow, '') AS Arrow,
 
     CASE 
 
@@ -251,5 +253,7 @@ SELECT
     CurrentTimestamp
 
 FROM Pivoted;
-
+ 
+ 
+select * from vw_DeviceDashboard
  
