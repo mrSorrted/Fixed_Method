@@ -84,7 +84,6 @@ private async void LiftPanelDetailsControl_Closed(object sender, WindowEventArgs
 SQL Query Start
 
 
-
 CREATE OR ALTER VIEW vw_DeviceDashboard
 
 AS
@@ -99,7 +98,9 @@ WITH Parsed AS
 
         d.CurrentTimestamp,
 
-        j.[key]       AS ElementNo,
+        CAST(d.Status AS INT) AS BaseStatus,  -- cast BIT to INT
+
+        j.[key] AS ElementNo,
 
         CAST(j.value AS INT) AS ElementValue
 
@@ -118,7 +119,9 @@ Pivoted AS
         DeviceName,
 
         CurrentTimestamp,
- 
+
+        MAX(BaseStatus) AS BaseStatus,  -- now aggregation works
+
         -- Current Floor (processed[0])
 
         MAX(CASE WHEN ElementNo = 0 THEN
@@ -133,11 +136,15 @@ Pivoted AS
 
         END) AS CurrentFloor,
  
-        -- Status (processed[3])
+        -- Status from processed[3]
 
         MAX(CASE WHEN ElementNo = 3 THEN
 
             CASE 
+
+                WHEN (CASE WHEN ElementValue > 128 THEN ElementValue & 0x7F ELSE ElementValue END) = 0
+
+                    THEN 'Normal Operation'
 
                 WHEN (CASE WHEN ElementValue > 128 THEN ElementValue & 0x7F ELSE ElementValue END) BETWEEN 1 AND 14
 
@@ -153,7 +160,7 @@ Pivoted AS
 
             END
 
-        END) AS Status,
+        END) AS StatusFromSignal,
  
         -- Door Status (processed[13])
 
@@ -215,7 +222,13 @@ SELECT
 
     DeviceName,
 
-    Status,
+    CASE 
+
+        WHEN BaseStatus = 1 THEN 'Offline'
+
+        ELSE StatusFromSignal
+
+    END AS Status,
 
     CurrentFloor,
 
@@ -229,7 +242,7 @@ SELECT
 
           OR Arrow LIKE '%Down Direction Run%'
 
-        THEN 15
+        THEN 7
 
         ELSE 0
 
@@ -238,8 +251,5 @@ SELECT
     CurrentTimestamp
 
 FROM Pivoted;
- 
- 
- 
-select * from vw_DeviceDashboard
+
  
