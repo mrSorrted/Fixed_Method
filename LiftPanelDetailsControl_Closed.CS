@@ -256,4 +256,162 @@ FROM Pivoted;
  
  
 select * from vw_DeviceDashboard
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        private async void UserProfileButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (UserSession.CurrentUser == null)
+                return;
+
+            // 🔥 If another dialog is open, CLOSE IT FIRST
+            try
+            {
+                _activeDialog?.Hide();
+            }
+            catch { }
+
+            _activeDialog = null;
+
+            var dialog = new ContentDialog
+            {
+                Title = "User Profile",
+                Content =
+                    $"Username: {UserSession.CurrentUser.Username}\n" +
+                    $"Role: {UserSession.CurrentUser.Role}\n" +
+                    $"Email: {UserSession.CurrentUser.Email}\n" +
+                    $"Phone: {UserSession.CurrentUser.PhoneNumber}\n" +
+                    $"Login Time: {_loginTime:MMM dd, yyyy HH:mm:ss}",
+                PrimaryButtonText = "Logout",
+                CloseButtonText = "Close",
+                XamlRoot = this.Content.XamlRoot
+            };
+
+            _activeDialog = dialog;
+
+            var result = await dialog.ShowAsync();
+
+            _activeDialog = null;
+
+            if (result == ContentDialogResult.Primary)
+            {
+                await PerformLogout("Profile Dialog");
+            }
+        }
+
+
+        private async void ShowAboutDialog()
+        {
+            // 🔥 Replace any existing dialog
+            try
+            {
+                _activeDialog?.Hide();
+            }
+            catch { }
+
+            _activeDialog = null;
+
+            var userInfo = UserSession.CurrentUser != null
+                ? $"\n\nCurrent User: {UserSession.CurrentUser.Username} ({UserSession.CurrentUser.Role})\nSession Started: {_loginTime:MMM dd, yyyy HH:mm:ss}"
+                : "";
+
+            var dialog = new ContentDialog
+            {
+                Title = "About VHT CMS System",
+                Content =
+                    $"VHT Elevator Management System v2.0.0\n\n" +
+                    $"A comprehensive solution for monitoring and controlling elevator systems.{userInfo}",
+                CloseButtonText = "OK",
+                XamlRoot = this.Content.XamlRoot
+            };
+
+            _activeDialog = dialog;
+
+            await dialog.ShowAsync();
+
+            _activeDialog = null;
+        }
+
+
+
+        // Handle window closing event
+        private ContentDialog? _activeDialog = null;
+
+        private async void LandingScreen_Closed(object sender, WindowEventArgs args)
+        {
+            // 🔹 If logout is already in progress → allow close
+            if (IsLogoutInProgress)
+                return;
+
+            // 🔹 If close already confirmed → allow close
+            if (_isClosingConfirmed)
+                return;
+
+            // 🔹 Stop automatic window close
+            args.Handled = true;
+
+            // 🔹 If a dialog is already open → do NOT open another
+            if (_activeDialog != null)
+                return;
+
+            // 🔥 Close any already-open dialog (Profile / About / Error)
+            try
+            {
+                _activeDialog?.Hide();
+            }
+            catch { }
+
+            _activeDialog = null;
+
+            bool hasBlinkingButtons = false;
+            try
+            {
+                hasBlinkingButtons = BlinkingButtonManager.HasAnyBlinkingButtons();
+            }
+            catch { }
+
+            string message = hasBlinkingButtons
+                ? "⚠️ Warning: Active controls are ON.\n\nClosing will deactivate everything.\n\nDo you want to exit anyway?"
+                : "Are you sure you want to exit the VHT CMS System?";
+
+            // 🔹 Create exit confirmation dialog (NO SOUND)
+            _activeDialog = new ContentDialog
+            {
+                Title = "Exit Application",
+                Content = message,
+                PrimaryButtonText = "Yes, Exit",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = this.Content.XamlRoot
+            };
+
+            // 🔹 Show dialog safely
+            var result = await _activeDialog.ShowAsync();
+
+            // 🔹 Reset dialog reference
+            _activeDialog = null;
+
+            // 🔹 User confirmed exit
+            if (result == ContentDialogResult.Primary)
+            {
+                _isClosingConfirmed = true;
+                UserSession.ClearSession();
+                this.Close();
+                Application.Current.Exit();
+            }
+
+            // Cancel → do nothing
+        }
+
  
